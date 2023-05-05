@@ -73,6 +73,10 @@ public:
   // compilation.
   util::TimePoint time_of_compilation;
 
+  std::optional<Digest> result_key;
+  std::optional<Digest> result_key_from_manifest;
+  std::optional<Digest> manifest_key;
+
   // Files included by the preprocessor and their hashes.
   std::unordered_map<std::string, Digest> included_files;
 

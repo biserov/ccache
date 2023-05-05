@@ -130,6 +130,7 @@ TEST_CASE("Config::update_from_file")
     "read_only_direct = true\n"
     "recache = true\n"
     "reshare = true\n"
+    "results_log = rl\n"
     "run_second_cpp = false\n"
     "sloppiness =     time_macros   ,include_file_mtime"
     "  include_file_ctime,file_stat_matches,file_stat_matches_ctime,pch_defines"
@@ -171,6 +172,7 @@ TEST_CASE("Config::update_from_file")
   CHECK(config.read_only_direct());
   CHECK(config.recache());
   CHECK(config.reshare());
+  CHECK(config.results_log() == "rl");
   CHECK_FALSE(config.run_second_cpp());
   CHECK(config.sloppiness().to_bitmask()
         == (static_cast<uint32_t>(core::Sloppy::clang_index_store)
@@ -418,6 +420,7 @@ TEST_CASE("Config::visit_items")
     "remote_only = true\n"
     "remote_storage = rs\n"
     "reshare = true\n"
+    "results_log = rl\n"
     "run_second_cpp = false\n"
     "sloppiness = include_file_mtime, include_file_ctime, time_macros,"
     " file_stat_matches, file_stat_matches_ctime, pch_defines, system_headers,"
@@ -479,6 +482,7 @@ TEST_CASE("Config::visit_items")
     "(test.conf) remote_only = true",
     "(test.conf) remote_storage = rs",
     "(test.conf) reshare = true",
+    "(test.conf) results_log = rl",
     "(test.conf) run_second_cpp = false",
     "(test.conf) sloppiness = clang_index_store, file_stat_matches,"
     " file_stat_matches_ctime, gcno_cwd, include_file_ctime,"

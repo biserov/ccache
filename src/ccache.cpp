@@ -58,6 +58,7 @@
 #include <util/file.hpp>
 #include <util/path.hpp>
 #include <util/string.hpp>
+#include <util/Timer.hpp>
 
 #include "third_party/fmt/core.h"
 
@@ -2155,6 +2156,8 @@ find_compiler(Context& ctx,
   ctx.orig_args[0] = resolved_compiler;
 }
 
+File results_logfile;
+
 static void
 initialize(Context& ctx, const char* const* argv, bool masquerading_as_compiler)
 {
@@ -2170,6 +2173,13 @@ initialize(Context& ctx, const char* const* argv, bool masquerading_as_compiler)
 #else
     LOG_RAW("Error: tracing is not enabled!");
 #endif
+  }
+
+  if (!ctx.config.results_log().empty() && !ctx.config.disable()) {
+    results_logfile.open(ctx.config.results_log(), "a");
+    if (results_logfile) {
+      Util::set_cloexec_flag(fileno(*results_logfile));
+    }
   }
 
   if (!ctx.config.log_file().empty() || ctx.config.debug()) {
@@ -2321,6 +2331,9 @@ cache_compilation(int argc, const char* const* argv)
     throw core::Fatal("no compiler given, see \"ccache --help\"");
   }
 
+  std::string results_line;
+  Timer work_time;
+
   {
     Context ctx;
     ctx.initialize(std::move(argv_parts.compiler_and_args),
@@ -2371,6 +2384,51 @@ cache_compilation(int argc, const char* const* argv)
       LOG("Executing {}", Util::format_argv_for_logging(execv_argv.data()));
       // Execute the original command below after ctx and finalizer have been
       // destructed.
+    }
+
+    results_line = Util::real_path(ctx.args_info.input_file);
+    results_line.append("\t");
+
+    core::Statistics statistics(ctx.storage.local.get_statistics_updates());
+    auto ids = statistics.get_statistics_ids();
+    ids.erase( std::unique( ids.begin(), ids.end() ), ids.end() );
+
+    int counter = 0;
+    for (const auto& message : ids) {
+        if (counter != 0) {
+            results_line.append(",");
+        }
+        results_line.append(message);
+        counter++;
+    }
+
+    results_line.append("\t");
+    if (ctx.result_key) {
+        results_line.append(ctx.result_key->to_string());
+    } else {
+        results_line.append("-");
+    }
+
+    results_line.append("\t");
+    if (ctx.manifest_key) {
+        results_line.append(ctx.manifest_key->to_string());
+    } else {
+        results_line.append("-");
+    }
+
+    // results log
+    if (!ctx.config.disable() && results_logfile) {
+        results_line.append("\t");
+        if (fall_back_to_original_compiler) {
+            results_line.append("-");
+        } else {
+            results_line.append(std::to_string(work_time.measure_s()));
+        }
+
+        results_line.append("\n");
+
+        fwrite(results_line.data(), results_line.length(), 1, *results_logfile);
+        fflush(*results_logfile);
     }
   }
 
@@ -2530,9 +2588,6 @@ do_cache_compilation(Context& ctx)
   args_to_hash.push_back(processed.extra_args_to_hash);
 
   bool put_result_in_manifest = false;
-  std::optional<Digest> result_key;
-  std::optional<Digest> result_key_from_manifest;
-  std::optional<Digest> manifest_key;
 
   if (ctx.config.direct_mode()) {
     LOG_RAW("Trying direct lookup");
@@ -2544,11 +2599,11 @@ do_cache_compilation(Context& ctx)
     if (!result_and_manifest_key) {
       return nonstd::make_unexpected(result_and_manifest_key.error());
     }
-    std::tie(result_key, manifest_key) = *result_and_manifest_key;
-    if (result_key) {
+    std::tie(ctx.result_key, ctx.manifest_key) = *result_and_manifest_key;
+    if (ctx.result_key) {
       // If we can return from cache at this point then do so.
       const auto from_cache_result =
-        from_cache(ctx, FromCacheCallMode::direct, *result_key);
+        from_cache(ctx, FromCacheCallMode::direct, *ctx.result_key);
       if (!from_cache_result) {
         return nonstd::make_unexpected(from_cache_result.error());
       } else if (*from_cache_result) {
@@ -2559,7 +2614,7 @@ do_cache_compilation(Context& ctx)
       // was already found in manifest, so don't re-add it later.
       put_result_in_manifest = false;
 
-      result_key_from_manifest = result_key;
+      ctx.result_key_from_manifest = ctx.result_key;
     } else {
       // Add result to manifest later.
       put_result_in_manifest = true;
@@ -2588,13 +2643,13 @@ do_cache_compilation(Context& ctx)
     if (!result_and_manifest_key) {
       return nonstd::make_unexpected(result_and_manifest_key.error());
     }
-    result_key = result_and_manifest_key->first;
+    ctx.result_key = result_and_manifest_key->first;
 
     // calculate_result_and_manifest_key always returns a non-nullopt result_key
     // if the last argument (direct_mode) is false.
-    ASSERT(result_key);
+    ASSERT(ctx.result_key);
 
-    if (result_key_from_manifest && result_key_from_manifest != result_key) {
+    if (ctx.result_key_from_manifest && ctx.result_key_from_manifest != ctx.result_key) {
       // The hash from manifest differs from the hash of the preprocessor
       // output. This could be because:
       //
@@ -2610,20 +2665,20 @@ do_cache_compilation(Context& ctx)
       LOG_RAW("Hash from manifest doesn't match preprocessor output");
       LOG_RAW("Likely reason: different CCACHE_BASEDIRs used");
       LOG_RAW("Removing manifest as a safety measure");
-      ctx.storage.remove(*result_key, core::CacheEntryType::result);
+      ctx.storage.remove(*ctx.result_key, core::CacheEntryType::result);
 
       put_result_in_manifest = true;
     }
 
     // If we can return from cache at this point then do.
     const auto from_cache_result =
-      from_cache(ctx, FromCacheCallMode::cpp, *result_key);
+      from_cache(ctx, FromCacheCallMode::cpp, *ctx.result_key);
     if (!from_cache_result) {
       return nonstd::make_unexpected(from_cache_result.error());
     } else if (*from_cache_result) {
-      if (ctx.config.direct_mode() && manifest_key && put_result_in_manifest) {
+      if (ctx.config.direct_mode() && ctx.manifest_key && put_result_in_manifest) {
         MTR_SCOPE("cache", "update_manifest");
-        update_manifest(ctx, *manifest_key, *result_key);
+        update_manifest(ctx, *ctx.manifest_key, *ctx.result_key);
       }
       return Statistic::preprocessed_cache_hit;
     }
@@ -2647,18 +2702,18 @@ do_cache_compilation(Context& ctx)
   MTR_BEGIN("cache", "to_cache");
   const auto digest = to_cache(ctx,
                                processed.compiler_args,
-                               result_key,
+                               ctx.result_key,
                                ctx.args_info.depend_extra_args,
                                depend_mode_hash);
   MTR_END("cache", "to_cache");
   if (!digest) {
     return nonstd::make_unexpected(digest.error());
   }
-  result_key = *digest;
+  ctx.result_key = *digest;
   if (ctx.config.direct_mode()) {
-    ASSERT(manifest_key);
+    ASSERT(ctx.manifest_key);
     MTR_SCOPE("cache", "update_manifest");
-    update_manifest(ctx, *manifest_key, *result_key);
+    update_manifest(ctx, *ctx.manifest_key, *ctx.result_key);
   }
 
   return ctx.config.recache() ? Statistic::recache : Statistic::cache_miss;

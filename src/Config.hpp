@@ -76,6 +76,7 @@ public:
   bool inode_cache() const;
   bool keep_comments_cpp() const;
   const std::string& log_file() const;
+  const std::string& results_log() const;
   uint64_t max_files() const;
   uint64_t max_size() const;
   const std::string& msvc_dep_prefix() const;
@@ -190,6 +191,7 @@ private:
   bool m_inode_cache = true;
   bool m_keep_comments_cpp = false;
   std::string m_log_file;
+  std::string m_results_log;
   uint64_t m_max_files = 0;
   uint64_t m_max_size = 5ULL * 1024 * 1024 * 1024;
   std::string m_msvc_dep_prefix = "Note: including file:";
@@ -375,6 +377,12 @@ inline const std::string&
 Config::log_file() const
 {
   return m_log_file;
+}
+
+inline const std::string&
+Config::results_log() const
+{
+  return m_results_log;
 }
 
 inline uint64_t
