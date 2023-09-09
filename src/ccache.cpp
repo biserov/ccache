@@ -1030,7 +1030,7 @@ rewrite_stdout_from_compiler(const Context& ctx, util::Bytes&& stdout_data)
           ctx, Util::normalize_concrete_absolute_path(abs_inc_path));
         std::string line_with_rel_inc =
           util::replace_first(orig_line, abs_inc_path, rel_inc_path);
-        new_stdout_data.insert(new_stdout_data.begin(),
+        new_stdout_data.insert(new_stdout_data.end(),
                                line_with_rel_inc.data(),
                                line_with_rel_inc.size());
       } else {
@@ -1104,7 +1104,9 @@ to_cache(Context& ctx,
     // mode.
     Args depend_mode_args = ctx.orig_args;
     depend_mode_args.erase_with_prefix("--ccache-");
-    depend_mode_args.push_back(depend_extra_args);
+    // Add depend_mode_args directly after the compiler. We can't add them last
+    // since options then may be placed after a "--" option.
+    depend_mode_args.insert(1, depend_extra_args);
     add_prefix(ctx, depend_mode_args, ctx.config.prefix_command());
 
     ctx.time_of_compilation = util::TimePoint::now();
@@ -1972,10 +1974,10 @@ static nonstd::expected<std::pair<std::optional<Digest>, std::optional<Digest>>,
                         Failure>
 calculate_result_and_manifest_key(Context& ctx,
                                   const Args& args,
-                                  Args& preprocessor_args,
                                   Hash& hash,
-                                  bool direct_mode)
+                                  Args* preprocessor_args)
 {
+  bool direct_mode = !preprocessor_args;
   bool found_ccbin = false;
 
   hash.hash_delimiter("cache entry version");
@@ -2032,17 +2034,18 @@ calculate_result_and_manifest_key(Context& ctx,
       result_key = get_result_key_from_manifest(ctx, *manifest_key);
     }
   } else if (ctx.args_info.arch_args.empty()) {
-    const auto digest = get_result_key_from_cpp(ctx, preprocessor_args, hash);
+    const auto digest = get_result_key_from_cpp(ctx, *preprocessor_args, hash);
     if (!digest) {
       return nonstd::make_unexpected(digest.error());
     }
     result_key = *digest;
     LOG_RAW("Got result key from preprocessor");
   } else {
-    preprocessor_args.push_back("-arch");
+    preprocessor_args->push_back("-arch");
     for (size_t i = 0; i < ctx.args_info.arch_args.size(); ++i) {
-      preprocessor_args.push_back(ctx.args_info.arch_args[i]);
-      const auto digest = get_result_key_from_cpp(ctx, preprocessor_args, hash);
+      preprocessor_args->push_back(ctx.args_info.arch_args[i]);
+      const auto digest =
+        get_result_key_from_cpp(ctx, *preprocessor_args, hash);
       if (!digest) {
         return nonstd::make_unexpected(digest.error());
       }
@@ -2052,9 +2055,9 @@ calculate_result_and_manifest_key(Context& ctx,
       if (i != ctx.args_info.arch_args.size() - 1) {
         result_key = std::nullopt;
       }
-      preprocessor_args.pop_back();
+      preprocessor_args->pop_back();
     }
-    preprocessor_args.pop_back();
+    preprocessor_args->pop_back();
   }
 
   if (result_key) {
@@ -2591,10 +2594,9 @@ do_cache_compilation(Context& ctx)
 
   if (ctx.config.direct_mode()) {
     LOG_RAW("Trying direct lookup");
-    Args dummy_args;
     MTR_BEGIN("hash", "direct_hash");
     const auto result_and_manifest_key = calculate_result_and_manifest_key(
-      ctx, args_to_hash, dummy_args, direct_hash, true);
+      ctx, args_to_hash, direct_hash, nullptr);
     MTR_END("hash", "direct_hash");
     if (!result_and_manifest_key) {
       return nonstd::make_unexpected(result_and_manifest_key.error());
@@ -2638,7 +2640,7 @@ do_cache_compilation(Context& ctx)
 
     MTR_BEGIN("hash", "cpp_hash");
     const auto result_and_manifest_key = calculate_result_and_manifest_key(
-      ctx, args_to_hash, processed.preprocessor_args, cpp_hash, false);
+      ctx, args_to_hash, cpp_hash, &processed.preprocessor_args);
     MTR_END("hash", "cpp_hash");
     if (!result_and_manifest_key) {
       return nonstd::make_unexpected(result_and_manifest_key.error());
@@ -2646,7 +2648,7 @@ do_cache_compilation(Context& ctx)
     ctx.result_key = result_and_manifest_key->first;
 
     // calculate_result_and_manifest_key always returns a non-nullopt result_key
-    // if the last argument (direct_mode) is false.
+    // in preprocessor mode (non-nullptr last argument).
     ASSERT(ctx.result_key);
 
     if (ctx.result_key_from_manifest && ctx.result_key_from_manifest != ctx.result_key) {

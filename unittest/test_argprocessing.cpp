@@ -569,6 +569,42 @@ TEST_CASE("cuda_option_file")
   CHECK(result.compiler_args.to_string() == "nvcc -g -Wall -DX -c");
 }
 
+TEST_CASE("nvcc_warning_flags_short")
+{
+  // With -Werror. This should conflict with host's -Werror flag.
+  TestContext test_context;
+  Context ctx;
+  ctx.config.set_compiler_type(CompilerType::nvcc);
+  ctx.orig_args =
+    Args::from_string("nvcc -Werror all-warnings -Xcompiler -Werror -c foo.cu");
+  util::write_file("foo.cu", "");
+  const ProcessArgsResult result = process_args(ctx);
+
+  CHECK(!result.error);
+  CHECK(result.preprocessor_args.to_string() == "nvcc -Xcompiler -Werror");
+  CHECK(result.extra_args_to_hash.to_string() == "-Werror all-warnings");
+  CHECK(result.compiler_args.to_string()
+        == "nvcc -Werror all-warnings -Xcompiler -Werror -c");
+}
+
+TEST_CASE("nvcc_warning_flags_long")
+{
+  // With --Werror. This shouldn't conflict with host's -Werror flag.
+  TestContext test_context;
+  Context ctx;
+  ctx.config.set_compiler_type(CompilerType::nvcc);
+  ctx.orig_args = Args::from_string(
+    "nvcc --Werror all-warnings -Xcompiler -Werror -c foo.cu");
+  util::write_file("foo.cu", "");
+  const ProcessArgsResult result = process_args(ctx);
+
+  CHECK(!result.error);
+  CHECK(result.preprocessor_args.to_string() == "nvcc -Xcompiler -Werror");
+  CHECK(result.extra_args_to_hash.to_string() == "--Werror all-warnings");
+  CHECK(result.compiler_args.to_string()
+        == "nvcc --Werror all-warnings -Xcompiler -Werror -c");
+}
+
 TEST_CASE("-Xclang")
 {
   TestContext test_context;
@@ -743,6 +779,32 @@ TEST_CASE("MSVC debug information format options")
     REQUIRE(!result.error);
     CHECK(result.preprocessor_args.to_string() == "cl.exe /Zi /Z7");
     CHECK(result.compiler_args.to_string() == "cl.exe /Zi /Z7 -c");
+  }
+}
+
+// Check that clang-cl debug information is parsed different,
+// since for clang-cl /Zi and /Z7 is the same!
+TEST_CASE("ClangCL Debug information options")
+{
+  TestContext test_context;
+  Context ctx;
+  ctx.config.set_compiler_type(CompilerType::clang_cl);
+  util::write_file("foo.c", "");
+
+  SUBCASE("/Z7")
+  {
+    ctx.orig_args = Args::from_string("clang-cl.exe /c foo.c /Z7");
+    const ProcessArgsResult result = process_args(ctx);
+    REQUIRE(!result.error);
+    CHECK(result.preprocessor_args.to_string() == "clang-cl.exe /Z7");
+  }
+
+  SUBCASE("/Zi")
+  {
+    ctx.orig_args = Args::from_string("clang-cl.exe /c foo.c /Zi");
+    const ProcessArgsResult result = process_args(ctx);
+    REQUIRE(!result.error);
+    CHECK(result.preprocessor_args.to_string() == "clang-cl.exe /Zi");
   }
 }
 

@@ -98,9 +98,9 @@ constexpr const char USAGE_TEXT[] =
     In the third form, ccache is masquerading as the compiler.
 
 Common options:
-    -c, --cleanup              delete old files and recalculate size counters
-                               (normally not needed as this is done
-                               automatically)
+    -c, --cleanup              delete not recently used files and recalculate
+                               size counters (normally not needed as this is
+                               done automatically)
     -C, --clear                clear the cache completely (except configuration)
         --config-path PATH     operate on configuration file PATH instead of the
                                default
@@ -108,8 +108,9 @@ Common options:
                                default
         --evict-namespace NAMESPACE
                                remove files created in namespace NAMESPACE
-        --evict-older-than AGE remove files older than AGE (unsigned integer
-                               with a d (days) or s (seconds) suffix)
+        --evict-older-than AGE remove files used less recently than AGE
+                               (unsigned integer with a d (days) or s (seconds)
+                               suffix)
     -F, --max-files NUM        set maximum number of files in cache to NUM (use
                                0 for no limit)
     -M, --max-size SIZE        set maximum size of cache to SIZE (use 0 for no
@@ -137,13 +138,14 @@ Common options:
     -V, --version              print version and copyright information
 
 Options for remote file-based storage:
-        --trim-dir PATH        remove old files from directory PATH until it is
-                               at most the size specified by --trim-max-size
-                               (note: don't use this option to trim the local
-                               cache)
-        --trim-max-size SIZE   specify the maximum size for --trim-dir;
-                               available suffixes: kB, MB, GB, TB (decimal) and
-                               KiB, MiB, GiB, TiB (binary); default suffix: GiB
+        --trim-dir PATH        remove not recently used files from directory
+                               PATH until it is at most the size specified by
+                               --trim-max-size (note: don't use this option to
+                               trim the local cache)
+        --trim-max-size SIZE   specify the maximum size for --trim-dir (use 0 for
+                               no limit); available suffixes: kB, MB, GB, TB
+                               (decimal) and KiB, MiB, GiB, TiB (binary);
+                               default suffix: GiB
         --trim-method METHOD   specify the method (atime or mtime) for
                                --trim-dir; default: atime
         --trim-recompress LEVEL
@@ -365,13 +367,15 @@ trim_dir(const std::string& dir,
   uint64_t final_size = size_after_recompression;
 
   size_t removed_files = 0;
-  for (const auto& file : files) {
-    if (final_size <= trim_max_size) {
-      break;
-    }
-    if (Util::unlink_tmp(file.path())) {
-      ++removed_files;
-      final_size -= file.size_on_disk();
+  if (trim_max_size > 0) {
+    for (const auto& file : files) {
+      if (final_size <= trim_max_size) {
+        break;
+      }
+      if (Util::unlink_tmp(file.path())) {
+        ++removed_files;
+        final_size -= file.size_on_disk();
+      }
     }
   }
 

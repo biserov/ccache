@@ -2,6 +2,11 @@ if(zstd_FOUND)
   return()
 endif()
 
+if(POLICY CMP0135)
+  # Set timestamps on extracted files to time of extraction.
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
 set(zstd_FOUND FALSE)
 
 if(ZSTD_FROM_INTERNET AND NOT ZSTD_FROM_INTERNET STREQUAL "AUTO")
@@ -48,17 +53,23 @@ if(do_download)
   # Although ${zstd_FIND_VERSION} was requested, let's download a newer version.
   # Note: The directory structure has changed in 1.3.0; we only support 1.3.0
   # and newer.
-  set(zstd_version "1.5.2")
+  set(zstd_version "1.5.5")
   set(zstd_dir   ${CMAKE_BINARY_DIR}/zstd-${zstd_version})
   set(zstd_build ${CMAKE_BINARY_DIR}/zstd-build)
+
+  if(XCODE)
+    # See https://github.com/facebook/zstd/pull/3665
+    set(zstd_patch PATCH_COMMAND sed -i .bak -e s/^set_source_files_properties.*PROPERTIES.*LANGUAGE.*C/\#&/ build/cmake/lib/CMakeLists.txt)
+  endif()
 
   include(FetchContent)
   FetchContent_Declare(
     zstd
     URL https://github.com/facebook/zstd/releases/download/v${zstd_version}/zstd-${zstd_version}.tar.gz
-    URL_HASH SHA256=7c42d56fac126929a6a85dbc73ff1db2411d04f104fae9bdea51305663a83fd0
+    URL_HASH SHA256=9c4396cc829cfae319a6e2615202e82aad41372073482fce286fac78646d3ee4
     SOURCE_DIR ${zstd_dir}
     BINARY_DIR ${zstd_build}
+    ${zstd_patch}
   )
 
   FetchContent_GetProperties(zstd)

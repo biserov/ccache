@@ -1,5 +1,123 @@
 = Ccache news
 
+== Ccache 4.8.3
+
+Release date: 2023-08-29
+
+=== Bug fixes
+
+- Fixed various problems with parsing of MSVC response file (`.rsp`). +
+  [small]#_[contributed by Jiri Hörner]_#
+
+- Fixed handling of NVCC `-Xcompiler` and `--Werror` options. +
+  [small]#_[contributed by Andrew Hardin]_#
+
+- Fixed bookkeeping of files when hard linking or file cloning is enabled. In
+  ccache 4.8–4.8.2 this could result in incorrect size/count statistics after
+  automatic or explicit cleanup. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+
+=== Build improvements
+
+- Made a workaround for GCC 12.3 bug 109241 where GCC fails to compile ccache. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+- Upgraded to xxHash 0.8.2, which fixes compilation of ccache with GCC 12 and
+  `-Og`. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+
+== Ccache 4.8.2
+
+Release date: 2023-06-12
+
+
+=== Bug fixes
+
+- Fixed parsing of Windows drive letter in file URLs for remote storage. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+- Fixed a bug affecting depend mode with MSVC. +
+  [small]#_[contributed by Huang Qin Jin]_#
+
+- Ccache no longer passes `-v` to the preprocessor. This improves preprocessor
+  mode hit rate when `-v` is on the compiler command line. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+- Made `--trim-max-size` accept 0 for no limit. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+
+=== Build improvements
+
+- Made various fixes for Windows 64-bit MSBuild builds. +
+  [small]#_[contributed by Rafael Kitover]_#
+
+- Silenced CMake warning for extracted timestamps. +
+  [small]#_[contributed by Rafael Kitover]_#
+
+- Worked around problem with building ZStandard with Xcode. +
+  [small]#_[contributed by Gregor Jasny]_#
+
+- Fixed undefined behavior (only triggered by unit tests) in
+  `util::read_file_part` for zero count, making the build fail with
+  `+_GLIBCXX_ASSERTIONS+`. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+
+=== Documentation improvements
+
+- Clarified `--evict-older-than` semantics. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+
+=== Test improvements
+
+- Fixed typo in "`Directory is not hashed if using -gz`" test. +
+  [small]#_[contributed by Sam James]_#
+
+
+== Ccache 4.8.1
+
+Release date: 2023-05-19
+
+
+=== Bug fixes
+
+- Fixed an issue with the depend mode in combination with `--` on the command
+  line for Clang-based compilers. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+- Improved knowledge about MSVC debug flags so that non-debug `/Z*` options are
+  once again supported. +
+  [small]#_[contributed by Stephan Rohmen]_#
+
+- Ccache no longer treats `/Zi` as unsupported for clang-cl. +
+  [small]#_[contributed by Tobias Hieta]_#
+
+- Made the output format of `ccache -k max_size` parsable by ccache itself. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+
+=== Build/CI improvements
+
+- Corrected ccache version in the macOS binary release. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+- Made it possible to build ccache with clang-cl on Windows. +
+  [small]#_[contributed by Tobias Hieta]_#
+
+- Upgraded to doctest 2.4.11, thereby fixing a build issue on Solaris. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+
+=== Documentation improvements
+
+- Added a remote file storage example with URL-encoded spaces. +
+  [small]#_[contributed by Joel Rosdahl]_
+
+
 == Ccache 4.8
 
 Release date: 2023-03-12
@@ -138,6 +256,17 @@ Release date: 2023-03-12
   [small]#_[contributed by Joel Rosdahl]_#
 
 - Fix a bad reference to the "`Remote storage backends`" section. +
+  [small]#_[contributed by Joel Rosdahl]_#
+
+
+== Ccache 4.7.5
+
+Release date: 2023-03-20
+
+=== Bug fixes
+
+- Disabled the inode cache by default again since there have reports of ccache
+  processes hanging on futex calls related to the inode cache. +
   [small]#_[contributed by Joel Rosdahl]_#
 
 
@@ -2386,7 +2515,7 @@ Release date: 2018-02-11
 - ccache now treats an unreadable configuration file just like a missing
   configuration file.
 
-- Documented more pitfalls with enabling `hard_links` (`CCACHE_HARDLINK`).
+- Documented more pitfalls with enabling `hard_link` (`CCACHE_HARDLINK`).
 
 - Documented caveats related to colored warnings from compilers.
 
