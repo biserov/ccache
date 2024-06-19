@@ -444,6 +444,52 @@ print_included_files(const Context& ctx, FILE* fp)
   }
 }
 
+
+static void
+recompile_log_add(const Context& ctx, const char *type, const Hash::Digest& key)
+{
+    static util::FileStream recompile_logfile;
+
+    if (ctx.config.disable()) {
+      return;
+    }
+
+    if (ctx.config.recompile_log().empty()) {
+      return;
+    }
+
+    if  (!recompile_logfile) {
+      recompile_logfile.open(ctx.config.recompile_log(), "a");
+
+      if  (!recompile_logfile) {
+        return;
+      }
+
+      util::set_cloexec_flag(fileno(*recompile_logfile));
+    }
+
+  std::string results_line;
+  const fs::path resolved_path = fs::canonical(ctx.args_info.input_file).value_or(ctx.args_info.input_file);
+
+  results_line = resolved_path;
+  results_line.append("\t");
+  results_line.append(type);
+  results_line.append("\t");
+
+  if (key.empty()) {
+    results_line.append("-");
+  } else {
+    results_line.append(util::format_digest(key));
+  }
+
+  results_line.append("\n");
+
+  fwrite(results_line.data(), results_line.length(), 1, *recompile_logfile);
+  fflush(*recompile_logfile);
+}
+
+
+
 // This function reads and hashes a file. While doing this, it also does these
 // things:
 //
@@ -869,6 +915,7 @@ update_manifest(Context& ctx,
     ctx.storage.put(manifest_key,
                     core::CacheEntryType::manifest,
                     core::CacheEntry::serialize(header, ctx.manifest));
+    recompile_log_add(ctx, "M", manifest_key);
   } else {
     LOG("Did not add result key to manifest {}",
         util::format_digest(manifest_key));
@@ -1254,6 +1301,8 @@ to_cache(Context& ctx,
         ctx, *result_key, result->stdout_data, result->stderr_data)) {
     return tl::unexpected(Statistic::compiler_produced_no_output);
   }
+
+  recompile_log_add(ctx, "R", *result_key);
 
   // Everything OK.
   core::send_to_console(
