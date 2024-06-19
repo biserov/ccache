@@ -108,7 +108,7 @@ enum class ConfigItem {
   remote_only,
   remote_storage,
   reshare,
-  results_log,
+  recompile_log,
   run_second_cpp,
   sloppiness,
   stats,
@@ -165,7 +165,7 @@ const std::unordered_map<std::string, ConfigKeyTableEntry> k_config_key_table =
     {"remote_only", {ConfigItem::remote_only}},
     {"remote_storage", {ConfigItem::remote_storage}},
     {"reshare", {ConfigItem::reshare}},
-    {"results_log", {ConfigItem::results_log}},
+    {"recompile_log", {ConfigItem::recompile_log}},
     {"run_second_cpp", {ConfigItem::run_second_cpp}},
     {"secondary_storage", {ConfigItem::remote_storage, "remote_storage"}},
     {"sloppiness", {ConfigItem::sloppiness}},
@@ -216,7 +216,7 @@ const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"REMOTE_ONLY", "remote_only"},
   {"REMOTE_STORAGE", "remote_storage"},
   {"RESHARE", "reshare"},
-  {"RESULTS_LOG", "results_log"},
+  {"RECOMPILE_LOG", "recompile_log"},
   {"SECONDARY_STORAGE", "remote_storage"}, // Alias for CCACHE_REMOTE_STORAGE
   {"SLOPPINESS", "sloppiness"},
   {"STATS", "stats"},
@@ -879,8 +879,8 @@ Config::get_string_value(const std::string& key) const
   case ConfigItem::reshare:
     return format_bool(m_reshare);
 
-  case ConfigItem::results_log:
-    return m_results_log;
+  case ConfigItem::recompile_log:
+    return m_recompile_log;
 
   case ConfigItem::run_second_cpp:
     return format_bool(m_run_second_cpp);
@@ -1149,8 +1149,8 @@ Config::set_item(const std::string& key,
     m_reshare = parse_bool(value, env_var_key, negate);
     break;
 
-  case ConfigItem::results_log:
-    m_results_log = value;
+  case ConfigItem::recompile_log:
+    m_recompile_log = value;
     break;
 
   case ConfigItem::run_second_cpp:

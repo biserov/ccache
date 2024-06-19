@@ -90,7 +90,7 @@ public:
   bool remote_only() const;
   const std::string& remote_storage() const;
   bool reshare() const;
-  const std::string& results_log() const;
+  const std::string& recompile_log() const;
   bool run_second_cpp() const;
   core::Sloppiness sloppiness() const;
   bool stats() const;
@@ -204,7 +204,7 @@ private:
   bool m_read_only_direct = false;
   bool m_recache = false;
   bool m_reshare = false;
-  std::string m_results_log;
+  std::string m_recompile_log;
   bool m_run_second_cpp = true;
   bool m_remote_only = false;
   std::string m_remote_storage;
@@ -454,9 +454,9 @@ Config::reshare() const
 }
 
 inline const std::string&
-Config::results_log() const
+Config::recompile_log() const
 {
-  return m_results_log;
+  return m_recompile_log;
 }
 
 inline bool
